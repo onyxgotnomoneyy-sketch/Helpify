@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <string>
 
 using namespace geode::prelude;
@@ -58,7 +59,7 @@ static bool containsSpecialName(std::string const& text) {
                 static_cast<unsigned char>(message[pos - 1])
             );
 
-        auto end = pos + name.size();
+        auto end = pos + std::strlen(name);
 
         bool rightOK =
             end >= message.size() ||
@@ -315,7 +316,7 @@ protected:
     float m_startHeight = 0.f;
 
 
-    bool init() {
+    bool init() override {
 
         if (!CCLayer::init())
             return false;
@@ -346,8 +347,6 @@ protected:
 
 
     void buildUI() {
-
-        // Remove old UI when resizing.
 
         if (m_background) {
 
@@ -947,7 +946,7 @@ protected:
     CCPoint m_startPosition;
 
 
-    bool init() {
+    bool init() override {
 
         if (!CCLayer::init())
             return false;
