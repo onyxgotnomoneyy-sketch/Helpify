@@ -13,10 +13,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build Geode mod
-        id: build
         uses: geode-sdk/build-geode-mod@main
         with:
-          sdk: v5.10.1
+          sdk: given
           target: iOS
           combine: false
 
@@ -24,4 +23,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Helpify-iOS
-          path: ${{ steps.build.outputs.build-output }}
+          path: build/*.geode
+          
