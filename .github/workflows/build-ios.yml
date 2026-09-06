@@ -16,7 +16,7 @@ jobs:
         id: build
         uses: geode-sdk/build-geode-mod@main
         with:
-          sdk: given
+          sdk: v5.10.1
           target: iOS
           combine: false
 
