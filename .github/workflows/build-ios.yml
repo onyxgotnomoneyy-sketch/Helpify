@@ -1,0 +1,27 @@
+name: Build Helpify iOS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build iOS .geode
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Geode mod
+        id: build
+        uses: geode-sdk/build-geode-mod@main
+        with:
+          sdk: given
+          target: iOS
+          combine: false
+
+      - name: Upload iOS .geode
+        uses: actions/upload-artifact@v4
+        with:
+          name: Helpify-iOS
+          path: ${{ steps.build.outputs.build-output }}
