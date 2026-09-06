@@ -5,8 +5,9 @@ using namespace geode::prelude;
 
 class HelpifyChat : public CCLayer {
 protected:
-    CCPoint m_dragOffset;
     bool m_dragging = false;
+    CCPoint m_startTouch;
+    CCPoint m_startPosition;
 
     bool init() {
         if (!CCLayer::init())
@@ -14,49 +15,37 @@ protected:
 
         auto winSize = CCDirector::sharedDirector()->getWinSize();
 
-        // Chat background
         auto background = CCLayerColor::create(
             ccc4(25, 25, 30, 245),
             360.f,
             250.f
         );
 
-        background->setPosition({
+        background->setPosition(
             winSize.width / 2.f - 180.f,
             winSize.height / 2.f - 125.f
-        });
+        );
 
-        this->addChild(background, 0);
+        this->addChild(background);
 
-        // Header
-        auto header = CCLabelBMFont::create(
+        auto title = CCLabelBMFont::create(
             "HELPIFY",
             "bigFont.fnt"
         );
 
-        header->setScale(0.55f);
-        header->setPosition({
-            180.f,
-            225.f
-        });
+        title->setScale(0.55f);
+        title->setPosition(180.f, 220.f);
+        background->addChild(title);
 
-        background->addChild(header);
-
-        // Welcome message
         auto message = CCLabelBMFont::create(
             "Ask me anything!",
             "goldFont.fnt"
         );
 
         message->setScale(0.55f);
-        message->setPosition({
-            180.f,
-            150.f
-        });
-
+        message->setPosition(180.f, 150.f);
         background->addChild(message);
 
-        // Close button
         auto closeSprite = ButtonSprite::create(
             "X",
             30,
@@ -73,14 +62,10 @@ protected:
             menu_selector(HelpifyChat::onClose)
         );
 
-        auto closeMenu = CCMenu::create();
-        closeMenu->setPosition({
-            330.f,
-            220.f
-        });
-
-        closeMenu->addChild(closeButton);
-        background->addChild(closeMenu);
+        auto menu = CCMenu::create();
+        menu->setPosition(330.f, 220.f);
+        menu->addChild(closeButton);
+        background->addChild(menu);
 
         return true;
     }
@@ -89,17 +74,13 @@ protected:
         this->removeFromParentAndCleanup(true);
     }
 
-    virtual bool ccTouchBegan(
-        CCTouch* touch,
-        CCEvent* event
-    ) override {
+    bool ccTouchBegan(CCTouch* touch, CCEvent*) override {
         auto location = touch->getLocation();
 
         auto winSize = CCDirector::sharedDirector()->getWinSize();
 
         float left = winSize.width / 2.f - 180.f;
         float right = winSize.width / 2.f + 180.f;
-        float bottom = winSize.height / 2.f - 125.f;
         float top = winSize.height / 2.f + 125.f;
 
         if (
@@ -108,45 +89,33 @@ protected:
             location.y >= top - 45.f &&
             location.y <= top
         ) {
+            m_startTouch = location;
+            m_startPosition = this->getPosition();
             m_dragging = true;
-
-            m_dragOffset = {
-                location.x - left,
-                location.y - bottom
-            };
-
             return true;
         }
 
         return false;
     }
 
-    virtual void ccTouchMoved(
-        CCTouch* touch,
-        CCEvent* event
-    ) override {
+    void ccTouchMoved(CCTouch* touch, CCEvent*) override {
         if (!m_dragging)
             return;
 
         auto location = touch->getLocation();
-        auto winSize = CCDirector::sharedDirector()->getWinSize();
 
-        float newLeft = location.x - m_dragOffset.x;
-        float newBottom = location.y - m_dragOffset.y;
+        float dx = location.x - m_startTouch.x;
+        float dy = location.y - m_startTouch.y;
 
-        newLeft = std::max(0.f, std::min(newLeft, winSize.width - 360.f));
-        newBottom = std::max(0.f, std::min(newBottom, winSize.height - 250.f));
+        CCPoint newPosition(
+            m_startPosition.x + dx,
+            m_startPosition.y + dy
+        );
 
-        this->setPosition({
-            newLeft - (winSize.width / 2.f - 180.f),
-            newBottom - (winSize.height / 2.f - 125.f)
-        });
+        this->setPosition(newPosition);
     }
 
-    virtual void ccTouchEnded(
-        CCTouch* touch,
-        CCEvent* event
-    ) override {
+    void ccTouchEnded(CCTouch*, CCEvent*) override {
         m_dragging = false;
     }
 
@@ -164,11 +133,12 @@ public:
     }
 };
 
+
 class HelpifyIconLayer : public CCLayer {
 protected:
+    bool m_dragging = false;
     CCPoint m_startTouch;
     CCPoint m_startPosition;
-    bool m_dragging = false;
 
     bool init() {
         if (!CCLayer::init())
@@ -179,38 +149,33 @@ protected:
         auto icon = CCSprite::create("HelpifyIcon.png"_spr);
 
         if (!icon)
-            return true;
+            return false;
 
         icon->setScale(0.8f);
-
         this->addChild(icon);
 
         this->setContentSize(icon->getContentSize());
 
-        this->setPosition({
-            winSize.width - 90.f,
-            winSize.height - 90.f
-        });
+        this->setPosition(
+            winSize.width - 70.f,
+            winSize.height - 70.f
+        );
 
         return true;
     }
 
-    bool ccTouchBegan(
-        CCTouch* touch,
-        CCEvent* event
-    ) override {
+    bool ccTouchBegan(CCTouch* touch, CCEvent*) override {
         auto location = touch->getLocation();
-
-        auto rect = CCRectMake(
-            0,
-            0,
-            this->getContentSize().width,
-            this->getContentSize().height
-        );
-
         auto local = this->convertToNodeSpace(location);
 
-        if (!rect.containsPoint(local))
+        auto size = this->getContentSize();
+
+        if (
+            local.x < 0 ||
+            local.y < 0 ||
+            local.x > size.width ||
+            local.y > size.height
+        )
             return false;
 
         m_startTouch = location;
@@ -220,10 +185,7 @@ protected:
         return true;
     }
 
-    void ccTouchMoved(
-        CCTouch* touch,
-        CCEvent* event
-    ) override {
+    void ccTouchMoved(CCTouch* touch, CCEvent*) override {
         auto location = touch->getLocation();
 
         float dx = location.x - m_startTouch.x;
@@ -237,7 +199,7 @@ protected:
 
         auto winSize = CCDirector::sharedDirector()->getWinSize();
 
-        auto newPosition = CCPoint(
+        CCPoint newPosition(
             m_startPosition.x + dx,
             m_startPosition.y + dy
         );
@@ -255,10 +217,7 @@ protected:
         this->setPosition(newPosition);
     }
 
-    void ccTouchEnded(
-        CCTouch* touch,
-        CCEvent* event
-    ) override {
+    void ccTouchEnded(CCTouch*, CCEvent*) override {
         if (!m_dragging) {
             auto chat = HelpifyChat::create();
 
@@ -283,6 +242,7 @@ public:
     }
 };
 
+
 class $modify(HelpifyMenuLayer, MenuLayer) {
     bool init() {
         if (!MenuLayer::init())
@@ -296,6 +256,7 @@ class $modify(HelpifyMenuLayer, MenuLayer) {
         return true;
     }
 };
+
 
 $on_mod(Loaded) {
     log::info("Helpify loaded successfully!");
