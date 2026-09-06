@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <cmath>
 #include <string>
 
@@ -14,13 +13,25 @@ using namespace geode::prelude;
 
 namespace helpify {
 
+// ============================================================
+// HELPERS
+// ============================================================
+
 static std::string lower(std::string text) {
-    for (auto& c : text)
+    for (auto& c : text) {
         c = static_cast<char>(
             std::tolower(static_cast<unsigned char>(c))
         );
+    }
 
     return text;
+}
+
+static bool containsInsensitive(
+    std::string const& text,
+    std::string const& search
+) {
+    return lower(text).find(lower(search)) != std::string::npos;
 }
 
 static bool containsSpecialName(std::string const& text) {
@@ -35,124 +46,241 @@ static bool containsSpecialName(std::string const& text) {
         "aj"
     };
 
-    for (auto name : names) {
-        if (message.find(name) != std::string::npos)
+    for (auto const& name : names) {
+        auto pos = message.find(name);
+
+        if (pos == std::string::npos)
+            continue;
+
+        bool leftOK =
+            pos == 0 ||
+            !std::isalnum(
+                static_cast<unsigned char>(message[pos - 1])
+            );
+
+        auto end = pos + name.size();
+
+        bool rightOK =
+            end >= message.size() ||
+            !std::isalnum(
+                static_cast<unsigned char>(message[end])
+            );
+
+        if (leftOK && rightOK)
             return true;
     }
 
     return false;
 }
 
-static void playDing() {
-    auto path = (Mod::get()->getResourcesDir() / "ding.ogg").string();
-
-    FMODAudioEngine::sharedEngine()->playEffect(path.c_str());
-}
-
 static std::string assistantName() {
     auto name =
-        Mod::get()->getSettingValue<std::string>("assistant-name");
+        Mod::get()->getSettingValue<std::string>(
+            "assistant-name"
+        );
 
-    if (name.empty())
-        return "Helpify";
-
-    return name;
+    return name.empty() ? "Helpify" : name;
 }
 
-static std::string replyTo(std::string const& message) {
-    auto text = lower(message);
+static void playDing() {
+    auto path =
+        Mod::get()->getResourcesDir() /
+        "ding.wav";
 
-    if (text.empty())
-        return "Type something and I'll help with your GD level.";
+    FMODAudioEngine::sharedEngine()->playEffect(
+        path.string().c_str()
+    );
+}
 
+
+// ============================================================
+// LOCAL RESPONSE ENGINE
+// ============================================================
+
+static std::string replyTo(std::string const& input) {
+
+    auto text = lower(input);
+
+    // GREETING
     if (
-        text.find("theme") != std::string::npos ||
-        text.find("vibe") != std::string::npos
+        containsInsensitive(text, "hello") ||
+        containsInsensitive(text, "hey") ||
+        text == "hi"
     ) {
-        return "Try a dying futuristic city: broken towers, dark fog, "
-               "flickering lights, and a world slowly losing power.";
+        return
+            "Yo! Give me a theme, level idea, name, "
+            "gameplay idea, decoration problem, song "
+            "vibe, boss, lore, transition, or difficulty "
+            "question.";
     }
 
-    if (text.find("name") != std::string::npos) {
-        return "Try: Nullspace, Afterglow, Fracture, Eventide, "
-               "Blackout, Last Light, or Oblivion.";
-    }
-
+    // THEME
     if (
-        text.find("gameplay") != std::string::npos ||
-        text.find("game play") != std::string::npos
+        containsInsensitive(text, "theme") ||
+        containsInsensitive(text, "aesthetic") ||
+        containsInsensitive(text, "vibe")
     ) {
-        return "Build each section around one main mechanic, then "
-               "gradually increase its difficulty. Use short transitions "
-               "before major drops.";
+        return
+            "Try a dying futuristic city: massive broken "
+            "buildings, dark fog, flickering lights, "
+            "floating debris, and a sky that gradually "
+            "falls apart with the music.";
     }
 
+    // LEVEL IDEA / CONCEPT
     if (
-        text.find("decor") != std::string::npos ||
-        text.find("decoration") != std::string::npos
+        containsInsensitive(text, "idea") ||
+        containsInsensitive(text, "concept") ||
+        containsInsensitive(text, "level idea")
     ) {
-        return "Layer silhouettes, background structures, foreground "
-               "objects, pulses, particles, and small moving details. "
-               "Don't give every object the same visual importance.";
+        return
+            "Concept: the player travels through a world "
+            "that is literally collapsing. Start with a "
+            "quiet abandoned city, introduce cracks in "
+            "reality, then turn the final drop into total "
+            "environmental destruction.";
     }
 
-    if (text.find("color") != std::string::npos) {
-        return "For a dark level, use black or charcoal with one main "
-               "accent color. Make the accent brighter during important "
-               "drops or gameplay moments.";
-    }
-
+    // NAMES
     if (
-        text.find("song") != std::string::npos ||
-        text.find("music") != std::string::npos
+        containsInsensitive(text, "name") ||
+        containsInsensitive(text, "level title")
     ) {
-        return "Tell me the mood, BPM, or style you want and I can help "
-               "design the level's sync and atmosphere around it.";
+        return
+            "Names you could use: Nullspace, Fracture, "
+            "Afterglow, Eventide, Blackout, Last Light, "
+            "Voidline, Redshift, Cataclysm, or Echofall.";
     }
 
-    if (text.find("boss") != std::string::npos) {
-        return "Make the boss part of the environment. Its attacks can "
-               "change the background, alter gameplay, trigger effects, "
-               "and introduce new patterns.";
-    }
-
+    // GAMEPLAY
     if (
-        text.find("lore") != std::string::npos ||
-        text.find("story") != std::string::npos
+        containsInsensitive(text, "gameplay") ||
+        containsInsensitive(text, "game play") ||
+        containsInsensitive(text, "gp") ||
+        containsInsensitive(text, "playstyle")
     ) {
-        return "Give the level a simple story arc: discovery, escalation, "
-               "collapse, and a final reveal. Let the decoration tell the "
-               "story instead of relying only on text.";
+        return
+            "Give every section one main gameplay idea. "
+            "Build around the song's strongest beats, "
+            "then gradually increase timing precision "
+            "and pattern complexity.";
     }
 
+    // DECORATION
     if (
-        text.find("transition") != std::string::npos ||
-        text.find("effect") != std::string::npos
+        containsInsensitive(text, "deco") ||
+        containsInsensitive(text, "decoration")
     ) {
-        return "Try using flashes, camera movement, object pulses, "
-               "color changes, and short movement sequences to make "
-               "transitions feel connected to the song.";
+        return
+            "Use three main depth layers: background, "
+            "gameplay layer, and foreground. Repeat a "
+            "small set of shapes and motifs so the level "
+            "looks intentional instead of cluttered.";
     }
 
-    if (text.find("difficulty") != std::string::npos) {
-        return "Pick one core difficulty goal and make the gameplay "
-               "consistent with it. For a harder level, increase timing "
-               "precision and pattern complexity instead of just adding "
-               "more objects.";
-    }
-
+    // COLORS
     if (
-        text.find("hello") != std::string::npos ||
-        text.find("hi") != std::string::npos ||
-        text.find("hey") != std::string::npos
+        containsInsensitive(text, "color") ||
+        containsInsensitive(text, "colour") ||
+        containsInsensitive(text, "palette")
     ) {
-        return "Yo! What are we cooking? Theme, gameplay, decoration, "
-               "names, songs, lore, bosses, or something else?";
+        return
+            "For a dark atmosphere, try charcoal and "
+            "black as the base, pale white for contrast, "
+            "and one bright accent color that becomes "
+            "stronger during important parts of the song.";
     }
 
-    return "I can help with themes, level concepts, names, gameplay, "
-           "decoration, colors, songs, bosses, lore, transitions, "
-           "effects, and difficulty ideas.";
+    // SONGS
+    if (
+        containsInsensitive(text, "song") ||
+        containsInsensitive(text, "music") ||
+        containsInsensitive(text, "nong")
+    ) {
+        return
+            "Build the visuals around the song's energy. "
+            "A soft intro followed by electric guitar or "
+            "a huge drop works really well for a world-"
+            "ending style level.";
+    }
+
+    // BOSS
+    if (
+        containsInsensitive(text, "boss") ||
+        containsInsensitive(text, "monster")
+    ) {
+        return
+            "Make the boss affect the actual level. "
+            "Its attacks can move objects, change the "
+            "background, trigger pulses, alter colors, "
+            "or temporarily change the gameplay.";
+    }
+
+    // LORE
+    if (
+        containsInsensitive(text, "lore") ||
+        containsInsensitive(text, "story")
+    ) {
+        return
+            "Keep the story simple: discovery, escalation, "
+            "collapse, then consequence. Let the "
+            "environment reveal the story instead of "
+            "using huge amounts of text.";
+    }
+
+    // TRANSITIONS
+    if (
+        containsInsensitive(text, "transition") ||
+        containsInsensitive(text, "transitions")
+    ) {
+        return
+            "For a strong transition, combine a short "
+            "flash, camera movement, object pulses, "
+            "color changes, and a visual element from "
+            "the next section entering before the drop.";
+    }
+
+    // EFFECTS
+    if (
+        containsInsensitive(text, "effect") ||
+        containsInsensitive(text, "effects")
+    ) {
+        return
+            "Good effects for dramatic sections include "
+            "screen pulses, subtle camera movement, "
+            "background movement, particles, flashes, "
+            "color grading, and objects reacting to beats.";
+    }
+
+    // DIFFICULTY
+    if (
+        containsInsensitive(text, "difficulty") ||
+        containsInsensitive(text, "hard") ||
+        containsInsensitive(text, "demon")
+    ) {
+        return
+            "For a difficult level, make the gameplay "
+            "challenging because of timing and patterns, "
+            "not just because there are more objects. "
+            "Give difficult sections readable setups.";
+    }
+
+    // HELP
+    if (
+        containsInsensitive(text, "help") ||
+        containsInsensitive(text, "what can you do")
+    ) {
+        return
+            "I can help with GD themes, concepts, names, "
+            "gameplay, decoration, colors, songs, bosses, "
+            "lore, transitions, effects, and difficulty.";
+    }
+
+    return
+        "I'm your local Geometry Dash assistant. "
+        "Ask me about themes, level ideas, names, "
+        "gameplay, decoration, colors, songs, bosses, "
+        "lore, transitions, effects, or difficulty.";
 }
 
 
@@ -163,6 +291,16 @@ static std::string replyTo(std::string const& message) {
 class HelpifyChat : public CCLayer {
 
 protected:
+
+    CCLayerColor* m_background = nullptr;
+    CCLabelBMFont* m_title = nullptr;
+    CCLabelBMFont* m_reply = nullptr;
+
+    TextInput* m_input = nullptr;
+
+    CCMenu* m_menu = nullptr;
+    CCMenuItemSpriteExtra* m_sendButton = nullptr;
+    CCMenuItemSpriteExtra* m_closeButton = nullptr;
 
     float m_width = 420.f;
     float m_height = 290.f;
@@ -176,40 +314,20 @@ protected:
     float m_startWidth = 0.f;
     float m_startHeight = 0.f;
 
-    CCLayerColor* m_background = nullptr;
-
-    CCLabelBMFont* m_title = nullptr;
-    CCLabelBMFont* m_reply = nullptr;
-
-    TextInput* m_input = nullptr;
-
-    CCMenu* m_menu = nullptr;
-
 
     bool init() {
 
         if (!CCLayer::init())
             return false;
 
-        auto win =
-            CCDirector::sharedDirector()->getWinSize();
-
         this->setContentSize(
-            CCSize(m_width, m_height)
-        );
-
-        this->setPosition(
-            std::max(
-                10.f,
-                win.width / 2.f - m_width / 2.f
-            ),
-            std::max(
-                10.f,
-                win.height / 2.f - m_height / 2.f
+            CCSize(
+                m_width,
+                m_height
             )
         );
 
-        rebuild();
+        buildUI();
 
         return true;
     }
@@ -217,7 +335,8 @@ protected:
 
     void registerWithTouchDispatcher() override {
 
-        CCTouchDispatcher::sharedDispatcher()
+        CCDirector::sharedDirector()
+            ->getTouchDispatcher()
             ->addTargetedDelegate(
                 this,
                 -500,
@@ -226,7 +345,9 @@ protected:
     }
 
 
-    void rebuild() {
+    void buildUI() {
+
+        // Remove old UI when resizing.
 
         if (m_background) {
 
@@ -235,17 +356,23 @@ protected:
             );
 
             m_background = nullptr;
+            m_title = nullptr;
+            m_reply = nullptr;
             m_input = nullptr;
             m_menu = nullptr;
+            m_sendButton = nullptr;
+            m_closeButton = nullptr;
         }
 
+
+        // BACKGROUND
 
         m_background =
             CCLayerColor::create(
                 ccc4(
                     22,
                     22,
-                    27,
+                    28,
                     248
                 ),
                 m_width,
@@ -263,9 +390,9 @@ protected:
         auto header =
             CCLayerColor::create(
                 ccc4(
-                    40,
-                    40,
-                    48,
+                    42,
+                    42,
+                    50,
                     255
                 ),
                 m_width,
@@ -273,14 +400,19 @@ protected:
             );
 
         header->setPosition(
-            0.f,
-            m_height - 42.f
+            CCPoint(
+                0.f,
+                m_height - 42.f
+            )
         );
 
         m_background->addChild(
-            header
+            header,
+            1
         );
 
+
+        // TITLE
 
         m_title =
             CCLabelBMFont::create(
@@ -293,12 +425,17 @@ protected:
         );
 
         m_title->setAnchorPoint(
-            CCPoint(0.f, 0.5f)
+            CCPoint(
+                0.f,
+                0.5f
+            )
         );
 
         m_title->setPosition(
-            14.f,
-            21.f
+            CCPoint(
+                12.f,
+                21.f
+            )
         );
 
         header->addChild(
@@ -312,12 +449,15 @@ protected:
             CCMenu::create();
 
         m_menu->setPosition(
-            CCPoint(0.f, 0.f)
+            CCPoint(
+                0.f,
+                0.f
+            )
         );
 
         m_background->addChild(
             m_menu,
-            5
+            10
         );
 
 
@@ -326,15 +466,12 @@ protected:
         auto closeSprite =
             ButtonSprite::create(
                 "X",
-                28,
-                true,
                 "goldFont.fnt",
                 "GJ_button_01.png",
-                1.f,
-                1.f
+                0.7f
             );
 
-        auto close =
+        m_closeButton =
             CCMenuItemSpriteExtra::create(
                 closeSprite,
                 this,
@@ -343,17 +480,19 @@ protected:
                 )
             );
 
-        close->setPosition(
-            m_width - 22.f,
-            m_height - 21.f
+        m_closeButton->setPosition(
+            CCPoint(
+                m_width - 22.f,
+                m_height - 21.f
+            )
         );
 
         m_menu->addChild(
-            close
+            m_closeButton
         );
 
 
-        // REPLY
+        // RESPONSE
 
         m_reply =
             CCLabelBMFont::create(
@@ -368,7 +507,7 @@ protected:
         m_reply->setWidth(
             std::max(
                 100.f,
-                m_width - 42.f
+                m_width - 40.f
             )
         );
 
@@ -377,12 +516,17 @@ protected:
         );
 
         m_reply->setAnchorPoint(
-            CCPoint(0.f, 1.f)
+            CCPoint(
+                0.f,
+                1.f
+            )
         );
 
         m_reply->setPosition(
-            20.f,
-            m_height - 65.f
+            CCPoint(
+                20.f,
+                m_height - 62.f
+            )
         );
 
         m_background->addChild(
@@ -399,44 +543,41 @@ protected:
                 m_width - 120.f
             );
 
-        auto input =
+        m_input =
             TextInput::create(
                 inputWidth,
                 "Ask Helpify...",
                 "bigFont.fnt"
             );
 
-        input->setMaxCharCount(
+        m_input->setMaxCharCount(
             180
         );
 
-        input->setPosition(
-            20.f + inputWidth / 2.f,
-            28.f
+        m_input->setPosition(
+            CCPoint(
+                20.f + inputWidth / 2.f,
+                28.f
+            )
         );
 
-        m_input = input;
-
         m_background->addChild(
-            input,
+            m_input,
             4
         );
 
 
-        // SEND BUTTON
+        // SEND
 
         auto sendSprite =
             ButtonSprite::create(
                 "SEND",
-                46,
-                true,
                 "goldFont.fnt",
                 "GJ_button_01.png",
-                1.f,
-                1.f
+                0.65f
             );
 
-        auto send =
+        m_sendButton =
             CCMenuItemSpriteExtra::create(
                 sendSprite,
                 this,
@@ -445,104 +586,53 @@ protected:
                 )
             );
 
-        send->setPosition(
-            m_width - 46.f,
-            28.f
+        m_sendButton->setPosition(
+            CCPoint(
+                m_width - 45.f,
+                28.f
+            )
         );
 
         m_menu->addChild(
-            send
+            m_sendButton
         );
 
 
-        // RESIZE CORNER
+        // RESIZE HANDLE
 
-        auto corner =
+        auto resizeHandle =
             CCLayerColor::create(
                 ccc4(
                     255,
                     255,
                     255,
-                    120
+                    130
                 ),
                 16.f,
                 16.f
             );
 
-        corner->setPosition(
-            m_width - 16.f,
-            0.f
+        resizeHandle->setPosition(
+            CCPoint(
+                m_width - 16.f,
+                0.f
+            )
         );
 
-        corner->setID(
-            "resize-corner"
+        resizeHandle->setID(
+            "resize-handle"
         );
 
         m_background->addChild(
-            corner,
+            resizeHandle,
             6
         );
     }
 
 
-    void onClose(CCObject*) {
-
-        this->removeFromParentAndCleanup(
-            true
-        );
-    }
-
-
-    void onSend(CCObject*) {
-
-        if (!m_input)
-            return;
-
-        auto message =
-            std::string(
-                m_input->getString()
-            );
-
-        if (message.empty())
-            return;
-
-
-        // Special-name ding
-
-        if (containsSpecialName(message))
-            playDing();
-
-
-        auto answer =
-            replyTo(message);
-
-
-        std::string output =
-            assistantName() +
-            ": " +
-            answer;
-
-
-        m_reply->setString(
-            output.c_str()
-        );
-
-        m_reply->setWidth(
-            std::max(
-                100.f,
-                m_width - 42.f
-            )
-        );
-
-
-        m_input->setString(
-            "",
-            false
-        );
-    }
-
-
-    bool inHeader(CCPoint p) const {
+    bool isHeader(
+        CCPoint const& p
+    ) const {
 
         return
             p.x >= 0.f &&
@@ -552,12 +642,15 @@ protected:
     }
 
 
-    bool inResizeCorner(CCPoint p) const {
+    bool isResizeCorner(
+        CCPoint const& p
+    ) const {
 
         return
-            p.x >= m_width - 32.f &&
-            p.x <= m_width + 4.f &&
-            p.y <= 32.f;
+            p.x >= m_width - 35.f &&
+            p.x <= m_width + 5.f &&
+            p.y >= -5.f &&
+            p.y <= 35.f;
     }
 
 
@@ -566,13 +659,15 @@ protected:
         CCEvent*
     ) override {
 
-        auto p =
+        auto point =
             this->convertToNodeSpace(
                 touch->getLocation()
             );
 
 
-        if (inResizeCorner(p)) {
+        // RESIZE
+
+        if (isResizeCorner(point)) {
 
             m_resizing = true;
             m_dragging = false;
@@ -590,7 +685,9 @@ protected:
         }
 
 
-        if (inHeader(p)) {
+        // DRAG HEADER
+
+        if (isHeader(point)) {
 
             m_dragging = true;
             m_resizing = false;
@@ -614,38 +711,86 @@ protected:
         CCEvent*
     ) override {
 
-        auto now =
+        auto current =
             touch->getLocation();
 
 
+        // DRAG
+
         if (m_dragging) {
 
-            auto dx =
-                now.x -
+            float dx =
+                current.x -
                 m_startTouch.x;
 
-            auto dy =
-                now.y -
+            float dy =
+                current.y -
                 m_startTouch.y;
+
+
+            auto win =
+                CCDirector::sharedDirector()
+                    ->getWinSize();
+
+
+            float x =
+                m_startPosition.x +
+                dx;
+
+            float y =
+                m_startPosition.y +
+                dy;
+
+
+            float maxX =
+                win.width -
+                m_width;
+
+
+            float maxY =
+                win.height -
+                m_height;
+
+
+            x =
+                std::max(
+                    0.f,
+                    std::min(
+                        maxX,
+                        x
+                    )
+                );
+
+
+            y =
+                std::max(
+                    0.f,
+                    std::min(
+                        maxY,
+                        y
+                    )
+                );
 
 
             this->setPosition(
                 CCPoint(
-                    m_startPosition.x + dx,
-                    m_startPosition.y + dy
+                    x,
+                    y
                 )
             );
         }
 
 
-        else if (m_resizing) {
+        // RESIZE
 
-            auto dx =
-                now.x -
+        if (m_resizing) {
+
+            float dx =
+                current.x -
                 m_startTouch.x;
 
-            auto dy =
-                now.y -
+            float dy =
+                current.y -
                 m_startTouch.y;
 
 
@@ -677,7 +822,7 @@ protected:
             );
 
 
-            rebuild();
+            buildUI();
         }
     }
 
@@ -702,12 +847,71 @@ protected:
     }
 
 
+    void onSend(CCObject*) {
+
+        if (!m_input)
+            return;
+
+
+        std::string message =
+            m_input->getString();
+
+
+        if (message.empty())
+            return;
+
+
+        if (containsSpecialName(message))
+            playDing();
+
+
+        auto answer =
+            replyTo(message);
+
+
+        std::string output =
+            assistantName() +
+            ": " +
+            answer;
+
+
+        if (m_reply) {
+
+            m_reply->setString(
+                output.c_str()
+            );
+
+            m_reply->setWidth(
+                std::max(
+                    100.f,
+                    m_width - 40.f
+                )
+            );
+        }
+
+
+        m_input->setString(
+            "",
+            false
+        );
+    }
+
+
+    void onClose(CCObject*) {
+
+        this->removeFromParentAndCleanup(
+            true
+        );
+    }
+
+
 public:
 
     static HelpifyChat* create() {
 
         auto ret =
             new HelpifyChat();
+
 
         if (
             ret &&
@@ -719,6 +923,7 @@ public:
             return ret;
         }
 
+
         delete ret;
 
         return nullptr;
@@ -727,19 +932,19 @@ public:
 
 
 // ============================================================
-// FLOATING ICON
+// FLOATING HELPIFY ICON
 // ============================================================
 
 class HelpifyIconLayer : public CCLayer {
 
 protected:
 
+    CCSprite* m_icon = nullptr;
+
     bool m_dragging = false;
 
     CCPoint m_startTouch;
     CCPoint m_startPosition;
-
-    CCSprite* m_icon = nullptr;
 
 
     bool init() {
@@ -749,7 +954,8 @@ protected:
 
 
         auto win =
-            CCDirector::sharedDirector()->getWinSize();
+            CCDirector::sharedDirector()
+                ->getWinSize();
 
 
         auto scale =
@@ -760,38 +966,57 @@ protected:
             );
 
 
-        auto icon =
+        m_icon =
             CCSprite::create(
                 "HelpifyIcon.png"_spr
             );
 
 
-        if (!icon)
+        if (!m_icon)
             return false;
 
 
-        m_icon = icon;
-
-
-        icon->setScale(
+        m_icon->setScale(
             0.16f * scale
         );
 
 
         this->addChild(
-            icon
+            m_icon
         );
+
+
+        auto iconSize =
+            m_icon->getContentSize();
+
+
+        float finalScale =
+            m_icon->getScale();
 
 
         this->setContentSize(
-            icon->getContentSize() *
-            icon->getScale()
+            CCSize(
+                iconSize.width * finalScale,
+                iconSize.height * finalScale
+            )
         );
 
 
+        // START TOP-RIGHT
+
         this->setPosition(
-            win.width - 65.f,
-            win.height - 65.f
+            CCPoint(
+                win.width - 65.f,
+                win.height - 65.f
+            )
+        );
+
+
+        m_icon->setPosition(
+            CCPoint(
+                this->getContentSize().width / 2.f,
+                this->getContentSize().height / 2.f
+            )
         );
 
 
@@ -801,7 +1026,8 @@ protected:
 
     void registerWithTouchDispatcher() override {
 
-        CCTouchDispatcher::sharedDispatcher()
+        CCDirector::sharedDirector()
+            ->getTouchDispatcher()
             ->addTargetedDelegate(
                 this,
                 -1000,
@@ -815,7 +1041,7 @@ protected:
         CCEvent*
     ) override {
 
-        auto local =
+        auto point =
             this->convertToNodeSpace(
                 touch->getLocation()
             );
@@ -826,10 +1052,10 @@ protected:
 
 
         if (
-            local.x < 0.f ||
-            local.y < 0.f ||
-            local.x > size.width ||
-            local.y > size.height
+            point.x < 0.f ||
+            point.y < 0.f ||
+            point.x > size.width ||
+            point.y > size.height
         ) {
             return false;
         }
@@ -855,16 +1081,17 @@ protected:
         CCEvent*
     ) override {
 
-        auto now =
+        auto current =
             touch->getLocation();
 
 
-        auto dx =
-            now.x -
+        float dx =
+            current.x -
             m_startTouch.x;
 
-        auto dy =
-            now.y -
+
+        float dy =
+            current.y -
             m_startTouch.y;
 
 
@@ -884,40 +1111,55 @@ protected:
 
 
         auto win =
-            CCDirector::sharedDirector()->getWinSize();
+            CCDirector::sharedDirector()
+                ->getWinSize();
 
 
-        auto halfW =
+        float halfWidth =
             this->getContentSize().width /
             2.f;
 
-        auto halfH =
+
+        float halfHeight =
             this->getContentSize().height /
             2.f;
 
 
-        auto x =
+        float x =
+            m_startPosition.x +
+            dx;
+
+
+        float y =
+            m_startPosition.y +
+            dy;
+
+
+        x =
             std::max(
-                halfW,
+                halfWidth,
                 std::min(
-                    win.width - halfW,
-                    m_startPosition.x + dx
+                    win.width - halfWidth,
+                    x
                 )
             );
 
 
-        auto y =
+        y =
             std::max(
-                halfH,
+                halfHeight,
                 std::min(
-                    win.height - halfH,
-                    m_startPosition.y + dy
+                    win.height - halfHeight,
+                    y
                 )
             );
 
 
         this->setPosition(
-            CCPoint(x, y)
+            CCPoint(
+                x,
+                y
+            )
         );
     }
 
@@ -927,12 +1169,36 @@ protected:
         CCEvent*
     ) override {
 
+        // TAP
+
         if (!m_dragging) {
 
             auto chat =
                 HelpifyChat::create();
 
+
             if (chat) {
+
+                auto win =
+                    CCDirector::sharedDirector()
+                        ->getWinSize();
+
+
+                chat->setPosition(
+                    CCPoint(
+                        std::max(
+                            10.f,
+                            win.width / 2.f -
+                            210.f
+                        ),
+                        std::max(
+                            10.f,
+                            win.height / 2.f -
+                            145.f
+                        )
+                    )
+                );
+
 
                 this->getParent()
                     ->addChild(
@@ -963,6 +1229,7 @@ public:
         auto ret =
             new HelpifyIconLayer();
 
+
         if (
             ret &&
             ret->init()
@@ -973,6 +1240,7 @@ public:
             return ret;
         }
 
+
         delete ret;
 
         return nullptr;
@@ -981,7 +1249,7 @@ public:
 
 
 // ============================================================
-// GEOMETRY DASH MENU LAYER
+// MENU LAYER
 // ============================================================
 
 class $modify(
@@ -1014,7 +1282,7 @@ class $modify(
 
 
 // ============================================================
-// MOD LOADED
+// LOADED
 // ============================================================
 
 $on_mod(Loaded) {
